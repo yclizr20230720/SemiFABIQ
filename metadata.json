@@ -1,0 +1,6 @@
+{
+  "name": "SEMFAB·IQ",
+  "description": "High-fidelity integrated semiconductor yield management system with parametric WAT analysis, SPC monitoring, FDC sensor trace analytics, and AI-driven autonomous root cause investigation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
