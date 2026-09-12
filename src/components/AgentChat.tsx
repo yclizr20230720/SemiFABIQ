@@ -16,23 +16,35 @@ import {
   ShieldAlert,
   Zap,
   CheckCircle2,
-  HelpCircle
+  HelpCircle,
+  Copy,
+  Check,
+  Code2,
+  Radio,
+  Map,
+  BarChart2,
+  Bug,
+  UserCheck,
+  ExternalLink
 } from "lucide-react";
-import { Lot, Equipment, Alarm, AgentAction, Message, InvestigationSession, AiRecommendation, RcaHypothesis } from "../types";
+import { Lot, Equipment, Alarm, AgentAction, Message, InvestigationSession, AiRecommendation, RcaHypothesis, EngineerVerdict } from "../types";
 import RcaHypothesisTree from "./RcaHypothesisTree";
 import AiRecommendationCard from "./AiRecommendationCard";
 import ToolExecutionViewer from "./ToolExecutionViewer";
 import YieldSimulationModal from "./YieldSimulationModal";
 import Report8DModal from "./Report8DModal";
+import MarkdownRenderer from "./MarkdownRenderer";
+import RcaEvidenceInspectorModal from "./RcaEvidenceInspectorModal";
 
 interface AgentChatProps {
   lots: Lot[];
   equipment: Equipment[];
   pendingActions: AgentAction[];
   onActionExecuted: () => void;
+  onNavigateTab?: (tabId: "yms" | "wat" | "cp" | "spc" | "fdc" | "defect" | "msc" | "traces" | "agent" | "fab" | "mrb" | "burnin") => void;
 }
 
-export default function AgentChat({ lots, equipment, pendingActions, onActionExecuted }: AgentChatProps) {
+export default function AgentChat({ lots, equipment, pendingActions, onActionExecuted, onNavigateTab }: AgentChatProps) {
   // Sessions state
   const [sessions, setSessions] = useState<InvestigationSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>("session_lot_109");
@@ -57,6 +69,31 @@ export default function AgentChat({ lots, equipment, pendingActions, onActionExe
   const [isSimModalOpen, setIsSimModalOpen] = useState(false);
   const [is8DModalOpen, setIs8DModalOpen] = useState(false);
   const [simRecommendation, setSimRecommendation] = useState<AiRecommendation | null>(null);
+  const [isEvidenceModalOpen, setIsEvidenceModalOpen] = useState(false);
+  const [evidenceInitialDomain, setEvidenceInitialDomain] = useState<"fdc" | "cp" | "wat" | "spc" | "defect" | "verdict">("fdc");
+  const [engineerVerdict, setEngineerVerdict] = useState<EngineerVerdict | null>(null);
+
+  const handleOpenEvidence = (domain: "fdc" | "cp" | "wat" | "spc" | "defect" | "verdict" = "fdc") => {
+    setEvidenceInitialDomain(domain);
+    setIsEvidenceModalOpen(true);
+  };
+
+  // Message view mode & copy state
+  const [msgViewMode, setMsgViewMode] = useState<Record<string, "rendered" | "raw">>({});
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+
+  const toggleMsgViewMode = (id: string) => {
+    setMsgViewMode((prev) => ({
+      ...prev,
+      [id]: prev[id] === "raw" ? "rendered" : "raw",
+    }));
+  };
+
+  const copyMessageContent = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedMsgId(id);
+    setTimeout(() => setCopiedMsgId(null), 2000);
+  };
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -313,6 +350,16 @@ export default function AgentChat({ lots, equipment, pendingActions, onActionExe
         {/* Global Action Modals */}
         <div className="flex items-center gap-2">
           <button
+            onClick={() => handleOpenEvidence("fdc")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00E5C4]/15 hover:bg-[#00E5C4]/25 border border-[#00E5C4]/30 text-[#00E5C4] text-xs font-semibold transition-all shadow-sm"
+            title="Inspect Cross-Domain Telemetry Proof & Data Tracing"
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>Evidence &amp; Tracing</span>
+            <span className="w-2 h-2 rounded-full bg-[#00E5C4] animate-pulse" />
+          </button>
+
+          <button
             onClick={() => {
               setSimRecommendation(null);
               setIsSimModalOpen(true);
@@ -439,32 +486,124 @@ export default function AgentChat({ lots, equipment, pendingActions, onActionExe
                   )}
 
                   {/* Message Content Parser */}
-                  <div className="space-y-1.5 text-slate-300">
-                    {m.content.split("\n").map((line, idx) => {
-                      if (line.startsWith("###")) {
-                        return (
-                          <h4 key={idx} className="font-display font-bold text-sm text-[#00E5C4] mt-2 mb-1">
-                            {line.replace("###", "").trim()}
-                          </h4>
-                        );
-                      }
-                      if (line.startsWith("####")) {
-                        return (
-                          <h5 key={idx} className="font-display font-bold text-xs text-purple-300 mt-2 mb-1">
-                            {line.replace("####", "").trim()}
-                          </h5>
-                        );
-                      }
-                      if (line.startsWith("1.") || line.startsWith("2.") || line.startsWith("3.") || line.startsWith("-")) {
-                        return (
-                          <p key={idx} className="pl-4 py-0.5 text-slate-300 font-mono text-[11px] list-item">
-                            {line.substring(2).trim()}
-                          </p>
-                        );
-                      }
-                      return <p key={idx} className="mb-1 leading-relaxed">{line}</p>;
-                    })}
-                  </div>
+                  {m.role === "user" ? (
+                    <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
+                  ) : (
+                    <div>
+                      {/* AI Response Top Controls */}
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/5 text-[10px] font-mono text-slate-400">
+                        <div className="flex items-center gap-1.5 text-[#00E5C4]">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span className="font-semibold tracking-wide">Semimind++ RCA Diagnostics</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => toggleMsgViewMode(m.id || `msg_${i}`)}
+                            className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all flex items-center gap-1 border border-white/5"
+                            title="Toggle between Rendered HTML and Raw Markdown"
+                          >
+                            <Code2 className="w-3 h-3 text-purple-400" />
+                            <span>
+                              {msgViewMode[m.id || `msg_${i}`] === "raw" ? "Formatted View" : "View Raw MD"}
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => copyMessageContent(m.id || `msg_${i}`, m.content)}
+                            className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all flex items-center gap-1 border border-white/5"
+                            title="Copy response markdown"
+                          >
+                            {copiedMsgId === (m.id || `msg_${i}`) ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {msgViewMode[m.id || `msg_${i}`] === "raw" ? (
+                        <pre className="p-3 bg-[#070B14] rounded-lg border border-white/10 font-mono text-[11px] text-slate-300 whitespace-pre-wrap overflow-x-auto leading-relaxed">
+                          {m.content}
+                        </pre>
+                      ) : (
+                        <MarkdownRenderer content={m.content} />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Multi-Domain Proof & Data Tracing Bar */}
+                  {m.role === "agent" && (
+                    <div className="mt-3 p-3 bg-[#070B14] rounded-xl border border-white/10 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-[#00E5C4]">
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          <span className="font-semibold uppercase tracking-wider">
+                            Domain Proof &amp; Telemetry Tracing:
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleOpenEvidence("verdict")}
+                          className="text-[10px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
+                        >
+                          <UserCheck className="w-3 h-3" />
+                          <span>Engineer Sign-off / Verdict</span>
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          onClick={() => handleOpenEvidence("fdc")}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 text-[10px] font-mono transition-colors"
+                          title="Inspect 60-second chamber pressure & RF match traces"
+                        >
+                          <Radio className="w-3 h-3 text-sky-400" />
+                          <span>FDC: 31.2 mTorr (DTW 0.88, +3.4σ)</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenEvidence("cp")}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono transition-colors"
+                          title="Inspect CP Sort radial yield cliff & Pareto"
+                        >
+                          <Map className="w-3 h-3 text-emerald-400" />
+                          <span>CP: Bin 106 Edge Ring (8.4%)</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenEvidence("wat")}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[10px] font-mono transition-colors"
+                          title="Inspect gate oxide thickness histogram & Ioff correlation"
+                        >
+                          <Sliders className="w-3 h-3 text-purple-400" />
+                          <span>WAT: Tox 1.82nm (Cpk 0.94, r=0.91)</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenEvidence("spc")}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-mono transition-colors"
+                          title="Inspect Western Electric Rule-5 & Rule-1 run alarms"
+                        >
+                          <BarChart2 className="w-3 h-3 text-amber-400" />
+                          <span>SPC: Rule-5 Out-of-Control (+3σ)</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenEvidence("defect")}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[10px] font-mono transition-colors"
+                          title="Inspect inline defect zone density & classification"
+                        >
+                          <Bug className="w-3 h-3 text-rose-400" />
+                          <span>Defect: 92x Bevel Adder Density</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* RCA Hypothesis Matrix Card */}
                   {m.hypotheses && m.hypotheses.length > 0 && (
@@ -472,6 +611,9 @@ export default function AgentChat({ lots, equipment, pendingActions, onActionExe
                       hypotheses={m.hypotheses}
                       onTestRequested={(hyp) => {
                         handleSend(`Run physical validation check on hypothesis: "${hyp.name}"`);
+                      }}
+                      onInspectEvidence={(hyp, domain) => {
+                        handleOpenEvidence(domain || "fdc");
                       }}
                     />
                   )}
@@ -514,17 +656,12 @@ export default function AgentChat({ lots, equipment, pendingActions, onActionExe
 
                 {currentResponse && (
                   <div className="p-4 rounded-2xl text-xs leading-relaxed bg-[#0A0F1C] border border-white/10 text-slate-200 rounded-bl-none w-full shadow-lg">
-                    {currentResponse.split("\n").map((line, idx) => {
-                      if (line.startsWith("###")) {
-                        return (
-                          <h4 key={idx} className="font-display font-bold text-sm text-[#00E5C4] mt-2 mb-1">
-                            {line.replace("###", "").trim()}
-                          </h4>
-                        );
-                      }
-                      return <p key={idx} className="mb-1 leading-relaxed">{line}</p>;
-                    })}
-                    <span className="inline-block w-2 h-3.5 bg-[#00E5C4] animate-pulse ml-0.5" />
+                    <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-white/5 text-[10px] font-mono text-[#00E5C4]">
+                      <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                      <span className="font-semibold tracking-wide">Synthesizing RCA Findings & Physics Model...</span>
+                    </div>
+                    <MarkdownRenderer content={currentResponse} />
+                    <span className="inline-block w-2 h-3.5 bg-[#00E5C4] animate-pulse ml-0.5 align-middle mt-1" />
                   </div>
                 )}
               </div>
@@ -701,6 +838,18 @@ export default function AgentChat({ lots, equipment, pendingActions, onActionExe
         isOpen={is8DModalOpen}
         onClose={() => setIs8DModalOpen(false)}
         sessionId={activeSessionId}
+      />
+
+      {/* MULTI-DOMAIN EVIDENCE & TELEMETRY PROOF INSPECTOR */}
+      <RcaEvidenceInspectorModal
+        isOpen={isEvidenceModalOpen}
+        onClose={() => setIsEvidenceModalOpen(false)}
+        lotId={activeSession?.focusLot || "LOT_109"}
+        equipmentId={activeSession?.focusEquipment || "EL23S18"}
+        sessionId={activeSessionId}
+        initialDomain={evidenceInitialDomain}
+        onNavigateTab={onNavigateTab}
+        onVerdictUpdated={(verdict) => setEngineerVerdict(verdict)}
       />
     </div>
   );

@@ -1,13 +1,14 @@
 import React from "react";
-import { CheckCircle2, AlertTriangle, XCircle, Beaker, ArrowRight, ShieldAlert } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, Beaker, ArrowRight, ShieldAlert, LineChart, ExternalLink, Radio, Map, Sliders, BarChart2, Bug } from "lucide-react";
 import { RcaHypothesis } from "../types";
 
 interface RcaHypothesisTreeProps {
   hypotheses: RcaHypothesis[];
   onTestRequested?: (hypothesis: RcaHypothesis) => void;
+  onInspectEvidence?: (hypothesis: RcaHypothesis, domain?: "fdc" | "cp" | "wat" | "spc" | "defect") => void;
 }
 
-export default function RcaHypothesisTree({ hypotheses, onTestRequested }: RcaHypothesisTreeProps) {
+export default function RcaHypothesisTree({ hypotheses, onTestRequested, onInspectEvidence }: RcaHypothesisTreeProps) {
   if (!hypotheses || hypotheses.length === 0) return null;
 
   return (
@@ -96,23 +97,90 @@ export default function RcaHypothesisTree({ hypotheses, onTestRequested }: RcaHy
                 )}
               </div>
 
-              {/* Suggested physical test */}
-              {hyp.suggestedTest && (
-                <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-[10px]">
-                  <div className="flex items-center gap-1.5 text-slate-400 font-mono">
-                    <Beaker className="w-3.5 h-3.5 text-[#00E5C4]" />
-                    <span>Test: {hyp.suggestedTest}</span>
+              {/* Linked Domain Evidence Badges */}
+              {hyp.domainLinks && (
+                <div className="mt-2.5 pt-2 border-t border-white/5 space-y-1.5">
+                  <span className="text-[9px] font-mono uppercase text-slate-500 block">
+                    Domain Telemetry Proof Links:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {hyp.domainLinks.fdc && (
+                      <button
+                        onClick={() => onInspectEvidence?.(hyp, "fdc")}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 text-[10px] font-mono transition-colors"
+                        title="Inspect FDC Chamber Sensor Traces"
+                      >
+                        <Radio className="w-3 h-3 text-sky-400" />
+                        <span>FDC: {hyp.domainLinks.fdc}</span>
+                      </button>
+                    )}
+                    {hyp.domainLinks.cp && (
+                      <button
+                        onClick={() => onInspectEvidence?.(hyp, "cp")}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono transition-colors"
+                        title="Inspect CP Wafer Sort Map"
+                      >
+                        <Map className="w-3 h-3 text-emerald-400" />
+                        <span>CP: {hyp.domainLinks.cp}</span>
+                      </button>
+                    )}
+                    {hyp.domainLinks.wat && (
+                      <button
+                        onClick={() => onInspectEvidence?.(hyp, "wat")}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[10px] font-mono transition-colors"
+                        title="Inspect WAT / PCM Parametric Correlation"
+                      >
+                        <Sliders className="w-3 h-3 text-purple-400" />
+                        <span>WAT: {hyp.domainLinks.wat}</span>
+                      </button>
+                    )}
+                    {hyp.domainLinks.spc && (
+                      <button
+                        onClick={() => onInspectEvidence?.(hyp, "spc")}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-mono transition-colors"
+                        title="Inspect SPC Western Electric Rules"
+                      >
+                        <BarChart2 className="w-3 h-3 text-amber-400" />
+                        <span>SPC: {hyp.domainLinks.spc}</span>
+                      </button>
+                    )}
+                    {hyp.domainLinks.defect && (
+                      <button
+                        onClick={() => onInspectEvidence?.(hyp, "defect")}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[10px] font-mono transition-colors"
+                        title="Inspect Defect DMS Spatial Density"
+                      >
+                        <Bug className="w-3 h-3 text-rose-400" />
+                        <span>Defect: {hyp.domainLinks.defect}</span>
+                      </button>
+                    )}
                   </div>
-                  {onTestRequested && isInvestigating && (
-                    <button
-                      onClick={() => onTestRequested(hyp)}
-                      className="text-[#00E5C4] hover:underline flex items-center gap-1 font-semibold"
-                    >
-                      Run Check <ArrowRight className="w-3 h-3" />
-                    </button>
-                  )}
                 </div>
               )}
+
+              {/* Action Bar */}
+              <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between text-[10px]">
+                {onInspectEvidence ? (
+                  <button
+                    onClick={() => onInspectEvidence(hyp)}
+                    className="inline-flex items-center gap-1 text-[#00E5C4] hover:text-[#33ebd0] font-mono font-semibold transition-colors"
+                  >
+                    <LineChart className="w-3 h-3" />
+                    <span>Inspect Multi-Domain Telemetry Tracing</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                {hyp.suggestedTest && isInvestigating && onTestRequested && (
+                  <button
+                    onClick={() => onTestRequested(hyp)}
+                    className="text-[#00E5C4] hover:underline flex items-center gap-1 font-semibold font-mono"
+                  >
+                    Run Test <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}

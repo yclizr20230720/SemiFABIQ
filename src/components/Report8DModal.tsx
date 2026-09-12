@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { X, FileText, Copy, Check, Download, Loader2 } from "lucide-react";
+import { X, FileText, Copy, Check, Download, Loader2, Eye, Code2 } from "lucide-react";
+import MarkdownRenderer from "./MarkdownRenderer";
 
 interface Report8DModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ export default function Report8DModal({ isOpen, onClose, sessionId }: Report8DMo
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [copied, setCopied] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -48,7 +50,7 @@ export default function Report8DModal({ isOpen, onClose, sessionId }: Report8DMo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-[#0D1526] border border-white/10 rounded-2xl w-full max-w-3xl h-[80vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-[#0D1526] border border-white/10 rounded-2xl w-full max-w-3xl h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -66,12 +68,38 @@ export default function Report8DModal({ isOpen, onClose, sessionId }: Report8DMo
           </div>
 
           <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex bg-[#070B14] p-0.5 rounded-lg border border-white/10 text-xs">
+              <button
+                onClick={() => setViewMode("formatted")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all font-medium ${
+                  viewMode === "formatted"
+                    ? "bg-[#00E5C4]/20 text-[#00E5C4]"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Formatted</span>
+              </button>
+              <button
+                onClick={() => setViewMode("raw")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all font-medium ${
+                  viewMode === "raw"
+                    ? "bg-purple-500/20 text-purple-300"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <Code2 className="w-3.5 h-3.5" />
+                <span>Raw MD</span>
+              </button>
+            </div>
+
             <button
               onClick={handleCopy}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all border border-white/10"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? "Copied" : "Copy Markdown"}</span>
+              <span>{copied ? "Copied" : "Copy"}</span>
             </button>
 
             <button
@@ -79,7 +107,7 @@ export default function Report8DModal({ isOpen, onClose, sessionId }: Report8DMo
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00E5C4] hover:bg-[#00c4a7] text-[#0A0F1C] text-xs font-semibold transition-all shadow-sm"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Download .md</span>
+              <span>Export</span>
             </button>
 
             <button
@@ -92,14 +120,20 @@ export default function Report8DModal({ isOpen, onClose, sessionId }: Report8DMo
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 bg-[#070B14] font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+        <div className="flex-1 overflow-y-auto p-6 bg-[#070B14]">
           {loading ? (
-            <div className="h-full flex items-center justify-center gap-2 text-slate-500">
+            <div className="h-full flex items-center justify-center gap-2 text-slate-500 font-mono text-xs">
               <Loader2 className="w-5 h-5 animate-spin text-[#00E5C4]" />
               <span>Generating formal 8D report...</span>
             </div>
+          ) : viewMode === "formatted" ? (
+            <div className="max-w-4xl mx-auto bg-[#0A0F1C] p-6 rounded-xl border border-white/5 shadow-lg">
+              <MarkdownRenderer content={content} />
+            </div>
           ) : (
-            content
+            <div className="font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+              {content}
+            </div>
           )}
         </div>
       </div>

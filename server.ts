@@ -439,6 +439,220 @@ app.delete("/api/agent/sessions/:session_id", (req, res) => {
   res.json({ success: true });
 });
 
+// Engineer Verdicts Store
+const engineerVerdicts: Record<string, any> = {
+  session_lot_109: {
+    id: "vrd_seed_1",
+    sessionId: "session_lot_109",
+    verdict: "CONFIRMED_BY_ENGINEER",
+    engineerName: "Dr. K. Chen (Principal Yield Integration)",
+    shiftId: "Shift-A / Fab-12 N5",
+    notes: "Physical verification confirmed: FDC chamber pressure spike to 31.2 mTorr (DTW distance 0.88, +3.4σ) compressed the outer boundary sheath during Step 4 Over-Etch, resulting in gate oxide thinning (Tox=1.82nm, Rule-5 violation) and 8.4% Bin 106 leakage fallout exclusively at radius r > 135mm. Agreed with AI proposed -2.5V RF bias offset and lot containment hold.",
+    agreedHypothesisId: "hyp_1",
+    timestamp: "10:42 UTC"
+  }
+};
+
+function generateDomainEvidence(lotId: string, equipmentId: string, sessionId?: string) {
+  // 60-second process run with 4 steps
+  const fdcPoints = [];
+  for (let s = 1; s <= 60; s++) {
+    let step = "Step 1: Gas Stabilize";
+    let baseP = 24.5 + Math.sin(s * 0.4) * 0.3;
+    let actualP = baseP + (Math.random() - 0.5) * 0.2;
+    let baseRf = 3.1 + Math.sin(s * 0.2) * 0.2;
+    let actualRf = baseRf + (Math.random() - 0.5) * 0.15;
+
+    if (s > 15 && s <= 25) {
+      step = "Step 2: Plasma Strike";
+      baseP = 24.8 + Math.sin(s * 0.5) * 0.4;
+      actualP = baseP + 0.8 + (Math.random() - 0.5) * 0.2;
+      baseRf = 3.4;
+      actualRf = 4.2;
+    } else if (s > 25 && s <= 45) {
+      step = "Step 3: Main Etch";
+      baseP = 24.5 + Math.sin(s * 0.3) * 0.25;
+      const surgeRatio = (s - 25) / 20;
+      actualP = baseP + 2.5 + surgeRatio * 3.8 + (Math.random() - 0.5) * 0.3;
+      baseRf = 3.2;
+      actualRf = baseRf + 4.5 + surgeRatio * 5.8;
+    } else if (s > 45) {
+      step = "Step 4: Over-Etch";
+      baseP = 24.6 + Math.sin(s * 0.2) * 0.3;
+      actualP = 31.2 + (Math.random() - 0.5) * 0.35; // peaked at 31.2 mTorr
+      baseRf = 3.1;
+      actualRf = 14.2 + (Math.random() - 0.5) * 0.4; // 14.2° phase angle
+    }
+
+    fdcPoints.push({
+      stepName: step,
+      second: s,
+      pressureBaseline: +baseP.toFixed(2),
+      pressureActual: +actualP.toFixed(2),
+      rfPhaseBaseline: +baseRf.toFixed(2),
+      rfPhaseActual: +actualRf.toFixed(2)
+    });
+  }
+
+  // CP Radial Yield points: Radius 0mm to 150mm (300mm wafer)
+  const radialPoints = [
+    { radiusMm: 15, yieldPct: 98.4, defectDieCount: 2 },
+    { radiusMm: 35, yieldPct: 98.1, defectDieCount: 4 },
+    { radiusMm: 55, yieldPct: 97.6, defectDieCount: 6 },
+    { radiusMm: 75, yieldPct: 97.2, defectDieCount: 8 },
+    { radiusMm: 95, yieldPct: 96.5, defectDieCount: 11 },
+    { radiusMm: 115, yieldPct: 94.8, defectDieCount: 18 },
+    { radiusMm: 125, yieldPct: 92.1, defectDieCount: 26 },
+    { radiusMm: 135, yieldPct: 78.4, defectDieCount: 52 },
+    { radiusMm: 142, yieldPct: 58.2, defectDieCount: 78 },
+    { radiusMm: 148, yieldPct: 41.5, defectDieCount: 94 }
+  ];
+
+  // WAT Tox Gate Oxide Histogram & Correlation
+  const watHistogram = [
+    { binRange: "1.60 - 1.64", count: 2, normalCurve: 1.5 },
+    { binRange: "1.65 - 1.69", count: 8, normalCurve: 6.2 },
+    { binRange: "1.70 - 1.74", count: 32, normalCurve: 28.5 },
+    { binRange: "1.75 - 1.79", count: 84, normalCurve: 82.1 }, // Target 1.75
+    { binRange: "1.80 - 1.84", count: 96, normalCurve: 64.0 }, // Excursion center 1.82nm
+    { binRange: "1.85 - 1.89", count: 48, normalCurve: 22.4 },
+    { binRange: "1.90 - 1.94", count: 24, normalCurve: 6.1 }, // USL 1.90 breached
+    { binRange: "1.95 - 1.99", count: 8, normalCurve: 1.2 }
+  ];
+
+  const watCorrelation = Array.from({ length: 24 }).map((_, idx) => {
+    const isEdge = idx > 15;
+    const tox = isEdge ? 1.82 + (Math.random() * 0.12 - 0.04) : 1.74 + (Math.random() * 0.08 - 0.04);
+    const ioff = isEdge ? 10.5 + (tox - 1.75) * 45 + Math.random() * 2 : 2.8 + Math.random() * 1.5;
+    return {
+      tox: +tox.toFixed(3),
+      ioff: +ioff.toFixed(2),
+      isOutlier: isEdge
+    };
+  });
+
+  // SPC Run Points (40 wafers)
+  const spcRunPoints = Array.from({ length: 40 }).map((_, idx) => {
+    const waferNum = idx + 1;
+    let val = 32.1 + Math.sin(idx * 0.5) * 0.6 + (Math.random() - 0.5) * 0.4;
+    let viol = undefined;
+    if (idx >= 32 && idx <= 35) {
+      val = 34.6 + Math.random() * 0.3; // Rule 5: 2 of 3 beyond 2σ (34.0)
+      viol = "Rule 5: Beyond 2σ Zone A";
+    }
+    if (idx === 38) {
+      val = 35.8; // Rule 1: Beyond 3σ UCL (35.0)
+      viol = "Rule 1: Beyond 3σ (Out-of-Control)";
+    }
+    return {
+      waferIndex: waferNum,
+      lotId: `W#${waferNum < 10 ? '0' + waferNum : waferNum}`,
+      value: +val.toFixed(2),
+      violation: viol
+    };
+  });
+
+  const verdict = (sessionId && engineerVerdicts[sessionId]) || engineerVerdicts["session_lot_109"];
+
+  return {
+    lotId: lotId || "LOT_109",
+    equipmentId: equipmentId || "EL23S18",
+    fdc: {
+      dtwDistance: 0.88,
+      zScore: 3.4,
+      actualMaxPressure: 31.2,
+      baselinePressure: 24.5,
+      actualRfPhase: 14.2,
+      baselineRfPhase: 3.1,
+      points: fdcPoints
+    },
+    cp: {
+      grossYield: lotId === "LOT_109" ? 85.0 : 94.8,
+      baselineYield: 95.1,
+      bin106Count: 168,
+      bin106Pct: 8.4,
+      radialPoints,
+      pareto: [
+        { bin: 1, name: "Bin 1 (Pass)", count: 1714, pct: 85.7 },
+        { bin: 106, name: "Bin 106 (GateOx Ioff)", count: 168, pct: 8.4 },
+        { bin: 104, name: "Bin 104 (Bridging Short)", count: 76, pct: 3.8 },
+        { bin: 201, name: "Bin 201 (Open Via)", count: 42, pct: 2.1 }
+      ]
+    },
+    wat: {
+      toxMean: 1.82,
+      toxTarget: 1.75,
+      toxUsl: 1.90,
+      toxLsl: 1.60,
+      cpk: 0.94,
+      ruleViolation: "Rule 5: 2 of 3 points > 2σ (Cpk 0.94 vs 1.67)",
+      histogram: watHistogram,
+      correlation: watCorrelation
+    },
+    spc: {
+      ruleViolation: "Western Electric Rule 5 & Rule 1: Pressure & Tox Cpk Drift",
+      ucl: 35.0,
+      cl: 32.1,
+      lcl: 29.2,
+      sigma2U: 34.0,
+      sigma2L: 30.2,
+      runPoints: spcRunPoints
+    },
+    defect: {
+      totalAdders: 448,
+      zones: [
+        { zone: "Center (0-60mm)", density: 0.02, count: 12 },
+        { zone: "Mid-Radius (60-125mm)", density: 0.04, count: 24 },
+        { zone: "Bevel & Edge (125-150mm)", density: 1.84, count: 412 }
+      ],
+      classifications: [
+        { type: "Sheath Micro-arcing Flakes", count: 291, pct: 65.0 },
+        { type: "Radial Bevel Polymer", count: 139, pct: 31.0 },
+        { type: "CMP Scratches", count: 18, pct: 4.0 }
+      ]
+    },
+    engineerVerdict: verdict
+  };
+}
+
+// Endpoint: Cross-Domain Evidence & Telemetry Traces
+app.get("/api/agent/evidence/:lot_id/:equipment_id", (req, res) => {
+  const { lot_id, equipment_id } = req.params;
+  const { session_id } = req.query;
+  const evidence = generateDomainEvidence(lot_id, equipment_id, session_id as string);
+  res.json(evidence);
+});
+
+// Endpoint: Submit Engineer Judgement / RCA Verification
+app.post("/api/agent/engineer-verdict", (req, res) => {
+  const { session_id, verdict, engineer_name, shift_id, notes, agreed_hypothesis_id } = req.body;
+  const targetSession = session_id || "session_lot_109";
+  
+  const newVerdict = {
+    id: `vrd_${Date.now()}`,
+    sessionId: targetSession,
+    verdict: verdict || "CONFIRMED_BY_ENGINEER",
+    engineerName: engineer_name || "Staff Process Engineer",
+    shiftId: shift_id || "Shift-A / Fab-12",
+    notes: notes || "Technical verification completed against physical FDC and WAT metrology data.",
+    agreedHypothesisId: agreed_hypothesis_id || "hyp_1",
+    timestamp: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }) + " UTC"
+  };
+
+  engineerVerdicts[targetSession] = newVerdict;
+
+  // Insert an audit alarm in the Fab system log
+  alarms.unshift({
+    id: Date.now(),
+    type: verdict === "CONFIRMED_BY_ENGINEER" ? "info" : "warning",
+    title: `Engineer RCA Sign-off: ${verdict === "CONFIRMED_BY_ENGINEER" ? "CONFIRMED" : verdict === "DISPUTED" ? "DISPUTED" : "METROLOGY NEEDED"}`,
+    meta: `${newVerdict.engineerName} (${newVerdict.shiftId}) — ${notes ? notes.slice(0, 75) + '...' : 'Verified against FDC/WAT proof'}`,
+    time: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" })
+  });
+
+  res.json({ success: true, verdict: newVerdict });
+});
+
 app.get("/api/agent/history/:session_id", (req, res) => {
   const { session_id } = req.params;
   const messages = agentSessions[session_id] || [];
@@ -557,7 +771,14 @@ app.get("/api/agent/stream/:session_id", async (req, res) => {
       likelihood: 94,
       status: "CONFIRMED",
       supportingEvidence: `Chamber pressure on ${targetEquip}_PM3 surged to 31.2 mTorr (DTW distance 0.88), collapsing the plasma boundary sheath near wafer bevel (r > 135mm). This produced excessive reactive ion bombardment.`,
-      suggestedTest: "Apply -2.5V bias offset to restore uniform ion flux across outer radial zones."
+      suggestedTest: "Apply -2.5V bias offset to restore uniform ion flux across outer radial zones.",
+      domainLinks: {
+        fdc: `Chamber Pressure 31.2 mTorr (DTW: 0.88, +3.4σ)`,
+        cp: `Bin 106 Edge Ring Fallout (8.4%, r > 135mm)`,
+        wat: `Tox 1.82nm (Rule-5 SPC violation, Cpk 0.94)`,
+        spc: `Rule-5 & Rule-1 Out-of-Control Alarms`,
+        defect: `38 Bevel Particle Adders (0 center scratch)`
+      }
     },
     {
       id: "hyp_2",
@@ -566,7 +787,11 @@ app.get("/api/agent/stream/:session_id", async (req, res) => {
       likelihood: 48,
       status: "INVESTIGATING",
       supportingEvidence: "ESC temperature shows a 7.8°C thermal gradient (62.1°C center vs 54.3°C edge), which can occur if backside helium flow is leaking at edge seal.",
-      suggestedTest: "Run automated helium rate-of-rise test on EL23S18 chuck."
+      suggestedTest: "Run automated helium rate-of-rise test on EL23S18 chuck.",
+      domainLinks: {
+        fdc: `ESC Delta 7.8°C (Center 62.1°C vs Edge 54.3°C)`,
+        wat: `Secondary Vt shift correlation`
+      }
     },
     {
       id: "hyp_3",
@@ -575,7 +800,11 @@ app.get("/api/agent/stream/:session_id", async (req, res) => {
       likelihood: 14,
       status: "RULED_OUT",
       supportingEvidence: "CMP-05 has low health score (68), but KLA defect inspection confirms no slurry scratches on wafer center or mid-radius.",
-      counterEvidence: "WAT Tox thickness is unblemished in center; failure is 100% radial edge ring."
+      counterEvidence: "WAT Tox thickness is unblemished in center; failure is 100% radial edge ring.",
+      domainLinks: {
+        defect: `Zero center slurry scratches detected`,
+        wat: `Tox center mean: 1.75nm nominal`
+      }
     }
   ];
 

@@ -34,3 +34,23 @@ body {
   background-color: #060A12;
   font-family: var(--font-sans);
 }
+
+/* KaTeX Math Styling */
+.katex {
+  font-size: 1.05em;
+  color: #F1F5F9;
+}
+
+.katex-display {
+  margin: 0.75rem 0 !important;
+  padding: 0.5rem 0.75rem !important;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.katex-display > .katex {
+  color: #00E5C4;
+}

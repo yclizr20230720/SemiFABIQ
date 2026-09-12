@@ -217,7 +217,8 @@ export default function App() {
               lots={lots} 
               equipment={equipment} 
               pendingActions={pendingActions} 
-              onActionExecuted={refreshData} 
+              onActionExecuted={refreshData}
+              onNavigateTab={(tab) => setActiveTab(tab)} 
             />
           )}
           {activeTab === "fab" && (

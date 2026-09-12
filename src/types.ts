@@ -69,6 +69,108 @@ export interface RcaHypothesis {
   supportingEvidence: string;
   counterEvidence?: string;
   suggestedTest?: string;
+  domainLinks?: {
+    fdc?: string;
+    cp?: string;
+    wat?: string;
+    spc?: string;
+    defect?: string;
+  };
+}
+
+export interface EngineerVerdict {
+  id: string;
+  sessionId: string;
+  verdict: "CONFIRMED_BY_ENGINEER" | "DISPUTED" | "REQUIRES_METROLOGY";
+  engineerName: string;
+  shiftId: string;
+  notes: string;
+  agreedHypothesisId?: string;
+  timestamp: string;
+}
+
+export interface DomainEvidenceTrace {
+  lotId: string;
+  equipmentId: string;
+  fdc: {
+    dtwDistance: number;
+    zScore: number;
+    actualMaxPressure: number;
+    baselinePressure: number;
+    actualRfPhase: number;
+    baselineRfPhase: number;
+    points: {
+      stepName: string;
+      second: number;
+      pressureBaseline: number;
+      pressureActual: number;
+      rfPhaseBaseline: number;
+      rfPhaseActual: number;
+    }[];
+  };
+  cp: {
+    grossYield: number;
+    baselineYield: number;
+    bin106Count: number;
+    bin106Pct: number;
+    radialPoints: {
+      radiusMm: number;
+      yieldPct: number;
+      defectDieCount: number;
+    }[];
+    pareto: {
+      bin: number;
+      name: string;
+      count: number;
+      pct: number;
+    }[];
+  };
+  wat: {
+    toxMean: number;
+    toxTarget: number;
+    toxUsl: number;
+    toxLsl: number;
+    cpk: number;
+    ruleViolation: string;
+    histogram: {
+      binRange: string;
+      count: number;
+      normalCurve: number;
+    }[];
+    correlation: {
+      tox: number;
+      ioff: number;
+      isOutlier: boolean;
+    }[];
+  };
+  spc: {
+    ruleViolation: string;
+    ucl: number;
+    cl: number;
+    lcl: number;
+    sigma2U: number;
+    sigma2L: number;
+    runPoints: {
+      waferIndex: number;
+      lotId: string;
+      value: number;
+      violation?: string;
+    }[];
+  };
+  defect: {
+    totalAdders: number;
+    zones: {
+      zone: string;
+      density: number;
+      count: number;
+    }[];
+    classifications: {
+      type: string;
+      count: number;
+      pct: number;
+    }[];
+  };
+  engineerVerdict?: EngineerVerdict;
 }
 
 export interface AiRecommendation {
